@@ -71,6 +71,11 @@
 
   <!-- Application Logic -->
   <script>
+    const SUPABASE_REST_URL = "https://faykfatpvejehltofomf.supabase.co/rest/v1";
+    const SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheWtmYXRwdmVqZWhsdG9mb21mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwOTE5NzIsImV4cCI6MjExMDY2Nzk3Mn0.wuDhUEb6DR7lsGWVemeddMe-72KHwqS9QbZspf9nu_w";
+    const STATE_ROW_ID = "main";
+    const LOCAL_FALLBACK_KEY = "DLMS_STORAGE_V4";
+
     const defaultData = {
       adminPassword: "admin123",
       currentUser: { id: 1, name: "Chief Librarian (Mr. Porash)", role: "ADMIN", email: "librarian@ihmmeerut.ac.in", username: "admin" },
@@ -104,6 +109,38 @@
       requests: []
     };
 
+    function hasSupabaseConfig() {
+      return SUPABASE_REST_URL && SUPABASE_API_KEY && !SUPABASE_API_KEY.includes("PASTE_YOUR_");
+    }
+
+    function buildSupabaseHeaders(includeJson = false) {
+      const headers = {
+        "apikey": SUPABASE_API_KEY,
+        "Authorization": `Bearer ${SUPABASE_API_KEY}`
+      };
+      if (includeJson) {
+        headers["Content-Type"] = "application/json";
+        headers["Prefer"] = "resolution=merge-duplicates,return=minimal";
+      }
+      return headers;
+    }
+
+    function normalizeData(raw) {
+      const parsed = raw ? JSON.parse(JSON.stringify(raw)) : JSON.parse(JSON.stringify(defaultData));
+      if (!parsed.adminPassword) parsed.adminPassword = "admin123";
+      if (!parsed.requests) parsed.requests = [];
+      if (!parsed.categories) parsed.categories = JSON.parse(JSON.stringify(defaultData.categories));
+      if (!parsed.books) parsed.books = JSON.parse(JSON.stringify(defaultData.books));
+      if (!parsed.members) parsed.members = JSON.parse(JSON.stringify(defaultData.members));
+      if (!parsed.issues) parsed.issues = JSON.parse(JSON.stringify(defaultData.issues));
+      if (!("currentUser" in parsed)) {
+        parsed.currentUser = JSON.parse(JSON.stringify(defaultData.currentUser));
+      }
+      parsed.members.forEach(m => { if (!m.password) m.password = "student123"; });
+      checkAndUpdateOverdues(parsed);
+      return parsed;
+    }
+
     function checkAndUpdateOverdues(data) {
       const todayStr = new Date().toISOString().split("T")[0];
       data.issues.forEach(i => {
@@ -117,34 +154,75 @@
       });
     }
 
-    function getStore() {
-      const saved = localStorage.getItem("DLMS_STORAGE_V4");
+    function readLocalFallback() {
+      const saved = localStorage.getItem(LOCAL_FALLBACK_KEY);
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
-          if (!parsed.adminPassword) parsed.adminPassword = "admin123";
-          if (!parsed.requests) parsed.requests = [];
-          if (parsed.members) {
-            parsed.members.forEach(m => { if (!m.password) m.password = "student123"; });
-          }
-          checkAndUpdateOverdues(parsed);
-          return parsed;
+          return normalizeData(JSON.parse(saved));
         } catch (e) { console.error(e); }
       }
-      checkAndUpdateOverdues(defaultData);
-      localStorage.setItem("DLMS_STORAGE_V4", JSON.stringify(defaultData));
-      return defaultData;
+      const initial = normalizeData(defaultData);
+      localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(initial));
+      return initial;
     }
 
-    function saveStore(data) {
-      localStorage.setItem("DLMS_STORAGE_V4", JSON.stringify(data));
+    async function fetchCloudState() {
+      if (!hasSupabaseConfig()) {
+        return readLocalFallback();
+      }
+      const endpoint = `${SUPABASE_REST_URL}/dlms_state?id=eq.${encodeURIComponent(STATE_ROW_ID)}&select=data`;
+      const res = await fetch(endpoint, {
+        headers: buildSupabaseHeaders(false)
+      });
+      if (!res.ok) {
+        throw new Error(`Supabase read failed (${res.status})`);
+      }
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
+        const normalized = normalizeData(rows[0].data);
+        localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(normalized));
+        return normalized;
+      }
+      const seeded = normalizeData(defaultData);
+      await pushCloudState(seeded);
+      return seeded;
     }
 
-    let state = getStore();
+    async function pushCloudState(data) {
+      localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(data));
+      if (!hasSupabaseConfig()) {
+        return;
+      }
+      const endpoint = `${SUPABASE_REST_URL}/dlms_state?on_conflict=id`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: buildSupabaseHeaders(true),
+        body: JSON.stringify([{
+          id: STATE_ROW_ID,
+          data: data,
+          updated_at: new Date().toISOString()
+        }])
+      });
+      if (!res.ok) {
+        throw new Error(`Supabase save failed (${res.status})`);
+      }
+    }
+
+    let state = readLocalFallback();
     let currentView = "dashboard";
     let loginRoleTab = "ADMIN"; 
     let catalogKeyword = "";
     let catalogCat = 0;
+
+    async function saveStore(data) {
+      state = normalizeData(data);
+      try {
+        await pushCloudState(state);
+      } catch (err) {
+        console.error(err);
+        showAlert("Saved locally, but cloud sync hit a snag. Check your Supabase API key and table policy.", false);
+      }
+    }
 
     function showAlert(msg, isSuccess = true) {
       const banner = document.getElementById("alert-banner");
@@ -217,21 +295,22 @@
       navigate('login');
     }
 
-    function switchRole() {
+    async function switchRole() {
       if (state.currentUser.role === 'ADMIN') {
         state.currentUser = { ...state.members[0] };
+        await saveStore(state);
         showAlert(`Switched to Student View: ${state.currentUser.name}`);
       } else {
         state.currentUser = { id: 1, name: "Chief Librarian (Mr. Porash)", role: "ADMIN", email: "librarian@ihmmeerut.ac.in", username: "admin" };
+        await saveStore(state);
         showAlert("Switched to Librarian Admin View");
       }
-      saveStore(state);
       navigate('dashboard');
     }
 
-    function logout() {
+    async function logout() {
       state.currentUser = null;
-      saveStore(state);
+      await saveStore(state);
       navigate('login');
       showAlert("Signed out safely.");
     }
@@ -249,12 +328,12 @@
       }
     }
 
-    function login(username, password) {
+    async function login(username, password) {
       const cleanUser = username.trim();
       if (loginRoleTab === 'ADMIN') {
         if (cleanUser === 'admin' && password === (state.adminPassword || 'admin123')) {
           state.currentUser = { id: 1, name: "Chief Librarian (Mr. Porash)", role: "ADMIN", email: "librarian@ihmmeerut.ac.in", username: "admin" };
-          saveStore(state);
+          await saveStore(state);
           showAlert("Welcome back, Mr. Porash.");
           navigate('dashboard');
         } else {
@@ -264,7 +343,7 @@
         const member = state.members.find(m => (m.username === cleanUser || m.email === cleanUser) && m.password === password);
         if (member) {
           state.currentUser = { ...member };
-          saveStore(state);
+          await saveStore(state);
           showAlert(`Welcome back, ${member.name}.`);
           navigate('dashboard');
         } else {
@@ -273,7 +352,7 @@
       }
     }
 
-    function resetPassword(identifier, newPassword, confirmPassword) {
+    async function resetPassword(identifier, newPassword, confirmPassword) {
       const cleanId = identifier.trim();
       if (newPassword.length < 4) {
         showAlert("Password must be at least 4 characters long.", false);
@@ -286,7 +365,7 @@
 
       if (cleanId === 'admin' || cleanId === 'librarian@ihmmeerut.ac.in') {
         state.adminPassword = newPassword;
-        saveStore(state);
+        await saveStore(state);
         loginRoleTab = 'ADMIN';
         showAlert("Administrator password updated.");
         navigate('login');
@@ -296,7 +375,7 @@
       const member = state.members.find(m => m.username === cleanId || m.email === cleanId);
       if (member) {
         member.password = newPassword;
-        saveStore(state);
+        await saveStore(state);
         loginRoleTab = 'STUDENT';
         showAlert(`Password updated for ${member.name}.`);
         navigate('login');
@@ -305,7 +384,7 @@
       }
     }
 
-    function registerNewStudent(form) {
+    async function registerNewStudent(form) {
       const name = form.name.value.trim();
       const username = form.username.value.trim();
       const email = form.email.value.trim();
@@ -319,13 +398,13 @@
 
       const newId = Math.max(...state.members.map(m => m.id), 0) + 1;
       state.members.push({ id: newId, name, username, email, phone, password, role: "MEMBER", status: "ACTIVE" });
-      saveStore(state);
+      await saveStore(state);
       loginRoleTab = 'STUDENT';
       showAlert(`Account created for ${name}. Please sign in.`);
       navigate('login');
     }
 
-    function updateStudentProfile(form) {
+    async function updateStudentProfile(form) {
       const u = state.currentUser;
       const member = state.members.find(m => m.id === u.id);
       if (!member) return;
@@ -344,7 +423,7 @@
       }
 
       state.currentUser = { ...member };
-      saveStore(state);
+      await saveStore(state);
       showAlert("Profile updated successfully!");
       navigate('dashboard');
     }
@@ -968,7 +1047,7 @@
       navigate("catalog");
     }
 
-    function addNewBook(form) {
+    async function addNewBook(form) {
       const newId = Math.max(...state.books.map(b => b.id), 0) + 1;
       const copies = parseInt(form.total.value);
       state.books.push({
@@ -976,21 +1055,21 @@
         publisher: form.publisher.value, edition: "1st Edition", categoryId: parseInt(form.categoryId.value),
         total: copies, available: copies, shelf: form.shelf.value
       });
-      saveStore(state);
+      await saveStore(state);
       showAlert(`Added "${form.title.value}" to catalog.`);
       navigate("catalog");
     }
 
-    function deleteBook(id) {
+    async function deleteBook(id) {
       if (confirm(`Remove book #${id} from catalog?`)) {
         state.books = state.books.filter(b => b.id !== id);
-        saveStore(state);
+        await saveStore(state);
         showAlert(`Book removed.`);
         navigate("catalog");
       }
     }
 
-    function requestBorrowBook(bookId) {
+    async function requestBorrowBook(bookId) {
       const u = state.currentUser;
       const book = state.books.find(b => b.id === bookId);
       if (!book || book.available <= 0) {
@@ -998,14 +1077,12 @@
         return;
       }
 
-      // Rule 1: Check if user has any overdue books
       const hasOverdue = state.issues.some(i => i.userId === u.id && i.status === 'OVERDUE');
       if (hasOverdue) {
         showAlert("Cannot request: You have overdue books or pending fines on your account.", false);
         return;
       }
 
-      // Rule 2: Check if user already reached max 3 active borrowed books
       const activeCount = state.issues.filter(i => i.userId === u.id && i.status !== 'RETURNED').length;
       if (activeCount >= 3) {
         showAlert("Borrow limit reached: You can only have a maximum of 3 active books at a time.", false);
@@ -1027,12 +1104,12 @@
         status: 'PENDING',
         date: new Date().toISOString().split("T")[0]
       });
-      saveStore(state);
+      await saveStore(state);
       showAlert("Borrow request submitted to librarian.");
       navigate("catalog");
     }
 
-    function requestReturnBook(bookId, issueId) {
+    async function requestReturnBook(bookId, issueId) {
       const u = state.currentUser;
       const existingReq = state.requests.find(r => r.userId === u.id && r.bookId === bookId && r.type === 'RETURN' && r.status === 'PENDING');
       if (existingReq) {
@@ -1050,12 +1127,12 @@
         status: 'PENDING',
         date: new Date().toISOString().split("T")[0]
       });
-      saveStore(state);
+      await saveStore(state);
       showAlert("Return request submitted to librarian.");
       navigate("dashboard");
     }
 
-    function approveRequest(reqId) {
+    async function approveRequest(reqId) {
       const req = state.requests.find(r => r.id === reqId);
       if (!req || req.status !== 'PENDING') return;
 
@@ -1105,21 +1182,21 @@
         showAlert(`Return request approved and stock restored.`);
       }
 
-      saveStore(state);
+      await saveStore(state);
       navigate("adminRequests");
     }
 
-    function rejectRequest(reqId) {
+    async function rejectRequest(reqId) {
       const req = state.requests.find(r => r.id === reqId);
       if (req) {
         req.status = 'REJECTED';
-        saveStore(state);
+        await saveStore(state);
         showAlert(`Request #${reqId} declined.`);
         navigate("adminRequests");
       }
     }
 
-    function issueBookDirect(bookIdStr, memberIdStr, daysStr) {
+    async function issueBookDirect(bookIdStr, memberIdStr, daysStr) {
       const bookId = parseInt(bookIdStr);
       const memberId = parseInt(memberIdStr);
       const days = parseInt(daysStr) || 14;
@@ -1141,12 +1218,12 @@
         dueDate: dueDate.toISOString().split("T")[0],
         returnDate: null, fine: 0.00, status: "ISSUED", remarks: "Direct admin checkout"
       });
-      saveStore(state);
+      await saveStore(state);
       showAlert("Book checked out successfully.");
       navigate("dashboard");
     }
 
-    function processDirectReturn(issueId) {
+    async function processDirectReturn(issueId) {
       const issue = state.issues.find(i => i.id === issueId);
       if (!issue || issue.status === "RETURNED") return;
 
@@ -1164,25 +1241,39 @@
       const book = state.books.find(b => b.id === issue.bookId);
       if (book) book.available++;
 
-      saveStore(state);
+      await saveStore(state);
       showAlert(`Book returned. Fine settled: ₹${fine}`);
       navigate("dashboard");
     }
 
-    function registerMemberFromAdmin(form) {
+    async function registerMemberFromAdmin(form) {
       const newId = Math.max(...state.members.map(m => m.id), 0) + 1;
       state.members.push({
         id: newId, name: form.name.value, username: form.username.value,
         email: form.email.value, phone: form.phone.value, password: form.password.value,
         role: "MEMBER", status: "ACTIVE"
       });
-      saveStore(state);
+      await saveStore(state);
       showAlert(`Member added.`);
       navigate("members");
     }
 
-    // Initialize application
-    navigate("dashboard");
+    async function initApp() {
+      navigate("dashboard");
+      if (!hasSupabaseConfig()) {
+        showAlert("Paste your Supabase anon/publishable key into SUPABASE_API_KEY in index.html so changes save online across devices.", false);
+        return;
+      }
+      try {
+        state = await fetchCloudState();
+        navigate(currentView);
+      } catch (err) {
+        console.error(err);
+        showAlert("Could not load from Supabase yet. Double-check your API key and dlms_state table.", false);
+      }
+    }
+
+    initApp();
   </script>
 </body>
 </html>
