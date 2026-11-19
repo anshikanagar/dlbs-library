@@ -86,16 +86,16 @@
         { id: 4, name: "Mathematics & Statistics" }
       ],
       books: [
-        { id: 1, isbn: "978-0072958867", title: "Database System Concepts", author: "Abraham Silberschatz, Henry Korth", publisher: "McGraw-Hill", edition: "7th Edition", categoryId: 1, total: 5, available: 4, shelf: "Rack-CS-01" },
-        { id: 2, isbn: "978-9352607310", title: "Programming with Java: A Primer", author: "E. Balagurusamy", publisher: "Tata McGraw-Hill", edition: "6th Edition", categoryId: 1, total: 8, available: 6, shelf: "Rack-CS-02" },
-        { id: 3, isbn: "978-0133591620", title: "Operating System Concepts", author: "Abraham Silberschatz, Peter Galvin", publisher: "Wiley", edition: "10th Edition", categoryId: 1, total: 4, available: 3, shelf: "Rack-CS-03" },
-        { id: 4, isbn: "978-0132126953", title: "Computer Networks", author: "Andrew S. Tanenbaum", publisher: "Pearson", edition: "5th Edition", categoryId: 2, total: 6, available: 6, shelf: "Rack-IT-01" },
-        { id: 5, isbn: "978-0071267823", title: "Software Engineering: A Practitioner's Approach", author: "Roger S. Pressman", publisher: "McGraw-Hill", edition: "8th Edition", categoryId: 1, total: 5, available: 4, shelf: "Rack-CS-04" },
-        { id: 6, isbn: "978-0070669116", title: "Discrete Mathematics and Its Applications", author: "Kenneth H. Rosen", publisher: "McGraw-Hill", edition: "7th Edition", categoryId: 4, total: 4, available: 4, shelf: "Rack-MA-01" },
-        { id: 7, isbn: "978-8121924559", title: "Principles and Practice of Management", author: "L.M. Prasad", publisher: "Sultan Chand", edition: "9th Edition", categoryId: 3, total: 3, available: 3, shelf: "Rack-MG-01" }
+        { id: 1, isbn: "978-0072958867", title: "Database System Concepts", author: "Abraham Silberschatz, Henry Korth", publisher: "McGraw-Hill", edition: "7th Edition", categoryId: 1, total: 5, available: 4, shelf: "Rack-CS-01", coverUrl: "" },
+        { id: 2, isbn: "978-9352607310", title: "Programming with Java: A Primer", author: "E. Balagurusamy", publisher: "Tata McGraw-Hill", edition: "6th Edition", categoryId: 1, total: 8, available: 6, shelf: "Rack-CS-02", coverUrl: "" },
+        { id: 3, isbn: "978-0133591620", title: "Operating System Concepts", author: "Abraham Silberschatz, Peter Galvin", publisher: "Wiley", edition: "10th Edition", categoryId: 1, total: 4, available: 3, shelf: "Rack-CS-03", coverUrl: "" },
+        { id: 4, isbn: "978-0132126953", title: "Computer Networks", author: "Andrew S. Tanenbaum", publisher: "Pearson", edition: "5th Edition", categoryId: 2, total: 6, available: 6, shelf: "Rack-IT-01", coverUrl: "" },
+        { id: 5, isbn: "978-0071267823", title: "Software Engineering: A Practitioner's Approach", author: "Roger S. Pressman", publisher: "McGraw-Hill", edition: "8th Edition", categoryId: 1, total: 5, available: 4, shelf: "Rack-CS-04", coverUrl: "" },
+        { id: 6, isbn: "978-0070669116", title: "Discrete Mathematics and Its Applications", author: "Kenneth H. Rosen", publisher: "McGraw-Hill", edition: "7th Edition", categoryId: 4, total: 4, available: 4, shelf: "Rack-MA-01", coverUrl: "" },
+        { id: 7, isbn: "978-8121924559", title: "Principles and Practice of Management", author: "L.M. Prasad", publisher: "Sultan Chand", edition: "9th Edition", categoryId: 3, total: 3, available: 3, shelf: "Rack-MG-01", coverUrl: "" }
       ],
       members: [
-        { id: 2, name: "Anshika Nagar (BCA-V)", email: "priya.bca@ihmmeerut.ac.in", phone: "9812345678", username: "anshika_nagar", password: "qwerty", role: "MEMBER", status: "ACTIVE" },
+        { id: 2, name: "Anshika Nagar (BCA-V)", email: "anshika.bca@ihmmeerut.ac.in", phone: "9812345678", username: "anshika_nagar", password: "student123", role: "MEMBER", status: "ACTIVE" },
         { id: 3, name: "Rahul Verma (BCA-V)", email: "rahul.bca@ihmmeerut.ac.in", phone: "9823456789", username: "rahul_verma", password: "student123", role: "MEMBER", status: "ACTIVE" },
         { id: 4, name: "Amit Kumar (BCA-III)", email: "amit.bca@ihmmeerut.ac.in", phone: "9834567890", username: "amit_kumar", password: "student123", role: "MEMBER", status: "ACTIVE" }
       ],
@@ -136,7 +136,15 @@
       if (!("currentUser" in parsed)) {
         parsed.currentUser = JSON.parse(JSON.stringify(defaultData.currentUser));
       }
-      parsed.members.forEach(m => { if (!m.password) m.password = "student123"; });
+      parsed.books.forEach(b => {
+        if (!("coverUrl" in b)) b.coverUrl = "";
+      });
+      parsed.members.forEach(m => {
+        if (!m.password) m.password = "student123";
+        if (m.username === "priya_sharma") m.username = "anshika_nagar";
+        if (m.name === "Priya Sharma (BCA-V)") m.name = "Anshika Nagar (BCA-V)";
+        if (m.email === "priya.bca@ihmmeerut.ac.in") m.email = "anshika.bca@ihmmeerut.ac.in";
+      });
       checkAndUpdateOverdues(parsed);
       return parsed;
     }
@@ -210,9 +218,11 @@
 
     let state = readLocalFallback();
     let currentView = "dashboard";
-    let loginRoleTab = "ADMIN"; 
+    let loginRoleTab = "ADMIN";
     let catalogKeyword = "";
     let catalogCat = 0;
+    let editingMemberId = null;
+    let editingBookId = null;
 
     async function saveStore(data) {
       state = normalizeData(data);
@@ -297,7 +307,8 @@
 
     async function switchRole() {
       if (state.currentUser.role === 'ADMIN') {
-        state.currentUser = { ...state.members[0] };
+        const firstStudent = state.members[0] || { id: 2, name: "Anshika Nagar (BCA-V)", email: "anshika.bca@ihmmeerut.ac.in", phone: "9812345678", username: "anshika_nagar", password: "student123", role: "MEMBER", status: "ACTIVE" };
+        state.currentUser = { ...firstStudent };
         await saveStore(state);
         showAlert(`Switched to Student View: ${state.currentUser.name}`);
       } else {
@@ -430,6 +441,8 @@
 
     function navigate(view) {
       currentView = view;
+      if (view !== "members") editingMemberId = null;
+      if (view !== "catalog") editingBookId = null;
       updateNavbar();
       const container = document.getElementById("app-container");
 
@@ -462,8 +475,9 @@
 
     function renderLogin() {
       const isStudent = loginRoleTab === 'STUDENT';
-      const defaultUser = isStudent ? 'priya_sharma' : 'admin';
-      const defaultPass = isStudent ? 'student123' : (state.adminPassword || 'admin123');
+      const defaultStudent = state.members[0] || { username: 'anshika_nagar', password: 'student123' };
+      const defaultUser = isStudent ? defaultStudent.username : 'admin';
+      const defaultPass = isStudent ? defaultStudent.password : (state.adminPassword || 'admin123');
 
       return `
         <div class="max-w-md mx-auto my-8 bg-white rounded-2xl shadow-sm border border-zinc-200/90 overflow-hidden">
@@ -515,7 +529,7 @@
 
             <div class="mt-6 mb-8 p-3.5 bg-zinc-50 border border-zinc-200/80 rounded-xl text-xs text-zinc-600 space-y-1">
               <div class="font-semibold text-zinc-800">Quick Access Credentials</div>
-              <div class="flex justify-between"><span>Student:</span> <code class="font-mono text-zinc-800">priya_sharma / student123</code></div>
+              <div class="flex justify-between"><span>Student:</span> <code class="font-mono text-zinc-800">${defaultStudent.username} / ${defaultStudent.password}</code></div>
               <div class="flex justify-between"><span>Admin:</span> <code class="font-mono text-zinc-800">admin / ${state.adminPassword || 'admin123'}</code></div>
             </div>
           </div>
@@ -777,9 +791,21 @@
       `;
     }
 
+    function getBookThumbnailUrl(book) {
+      if (book.coverUrl && book.coverUrl.trim()) {
+        return book.coverUrl.trim();
+      }
+      const cleanIsbn = (book.isbn || "").replace(/[^0-9X]/gi, "");
+      if (cleanIsbn) {
+        return `https://covers.openlibrary.org/b/isbn/${cleanIsbn}-S.jpg`;
+      }
+      return `https://placehold.co/40x56?text=${encodeURIComponent((book.title || "DLMS").slice(0, 4))}`;
+    }
+
     function renderCatalog() {
       const u = state.currentUser;
       const isAdmin = u && u.role === 'ADMIN';
+      const editingBook = isAdmin && editingBookId !== null ? state.books.find(b => b.id === editingBookId) : null;
 
       let filtered = state.books.filter(b => {
         const matchesCat = catalogCat === 0 || b.categoryId === catalogCat;
@@ -791,12 +817,13 @@
         const cat = state.categories.find(c => c.id === b.categoryId) || { name: "General" };
         const hasStock = b.available > 0;
         const hasPendingBorrow = !isAdmin && state.requests.some(r => r.userId === u.id && r.bookId === b.id && r.type === 'BORROW' && r.status === 'PENDING');
-        const coverUrl = `https://covers.openlibrary.org/b/isbn/${b.isbn.replace(/-/g, '')}-S.jpg`;
+        const coverUrl = getBookThumbnailUrl(b);
+        const fallbackUrl = `https://placehold.co/40x56?text=${encodeURIComponent((b.title || "DLMS").slice(0, 4))}`;
 
         return `
           <tr class="hover:bg-zinc-50/80 border-b border-zinc-100 transition-colors">
             <td class="px-5 py-4">
-              <img src="${coverUrl}" alt="Cover" class="w-10 h-14 object-cover rounded shadow-2xs bg-zinc-100 border border-zinc-200" onerror="this.src='https://placehold.co/40x56?text=DLMS'">
+              <img src="${coverUrl}" alt="Cover" class="w-10 h-14 object-cover rounded shadow-2xs bg-zinc-100 border border-zinc-200" onerror="this.onerror=null; this.src='${fallbackUrl}';">
             </td>
             <td class="px-5 py-4">
               <div class="font-semibold text-zinc-900">${b.title}</div>
@@ -810,8 +837,8 @@
                 ${hasStock ? `${b.available} of ${b.total} available` : 'Out of stock'}
               </span>
             </td>
-            <td class="px-5 py-4 text-right">
-              ${isAdmin ? `<button onclick="deleteBook(${b.id})" class="text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg font-semibold transition">Remove</button>` : 
+            <td class="px-5 py-4 text-right space-x-2">
+              ${isAdmin ? `<button onclick="startEditBook(${b.id})" class="text-xs text-indigo-600 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg font-semibold transition">Edit</button><button onclick="deleteBook(${b.id})" class="text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg font-semibold transition">Remove</button>` : 
                 (hasPendingBorrow ? '<span class="text-xs text-amber-600 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg">Pending Approval</span>' : 
                   (hasStock ? `<button onclick="requestBorrowBook(${b.id})" class="bg-zinc-900 hover:bg-indigo-600 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg shadow-2xs transition">Request Borrow</button>` : '<span class="text-xs text-zinc-400">Unavailable</span>'))}
             </td>
@@ -845,7 +872,34 @@
             </div>
           </div>
 
-          ${isAdmin ? `
+          ${isAdmin ? (editingBook ? `
+          <div class="bg-white p-5 rounded-2xl border border-indigo-200 shadow-2xs mb-6">
+            <h2 class="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-4">Edit Book #${editingBook.id}</h2>
+            <form onsubmit="event.preventDefault(); saveBookEdit(this);">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">ISBN</label><input type="text" name="isbn" value="${editingBook.isbn}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Book Title</label><input type="text" name="title" value="${editingBook.title}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Author</label><input type="text" name="author" value="${editingBook.author}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Publisher</label><input type="text" name="publisher" value="${editingBook.publisher}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Category</label><select name="categoryId" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs">${state.categories.map(c => `<option value="${c.id}" ${editingBook.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join("")}</select></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Total Copies</label><input type="number" name="total" value="${editingBook.total}" min="1" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Shelf Location</label><input type="text" name="shelf" value="${editingBook.shelf}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+              </div>
+              <div class="mb-4">
+                <label class="block text-xs font-semibold text-zinc-600 mb-1">Custom Thumbnail Image URL or Upload</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input type="text" id="edit-book-cover-url" name="coverUrl" value="${editingBook.coverUrl || ''}" placeholder="https://example.com/cover.jpg (leave blank for ISBN cover)" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs">
+                  <input type="file" accept="image/*" onchange="handleCoverUpload(this, 'edit-book-cover-url')" class="w-full px-3 py-1.5 border border-zinc-200 rounded-xl text-xs bg-zinc-50">
+                </div>
+              </div>
+              <div class="flex justify-end space-x-2">
+                <button type="button" onclick="cancelEditBook()" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-semibold py-2 px-4 rounded-xl text-xs transition">Cancel</button>
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-2xs transition">Save Book</button>
+              </div>
+            </form>
+          </div>` : `
           <div class="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-2xs mb-6">
             <h2 class="text-xs font-bold text-zinc-800 uppercase tracking-wider mb-4">Add New Volume to Inventory</h2>
             <form onsubmit="event.preventDefault(); addNewBook(this);">
@@ -854,15 +908,22 @@
                 <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Book Title</label><input type="text" name="title" placeholder="Title" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
                 <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Author</label><input type="text" name="author" placeholder="Author" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
                 <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Publisher</label><input type="text" name="publisher" placeholder="Publisher" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
                 <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Category</label><select name="categoryId" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs">${catOptions}</select></div>
                 <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Total Copies</label><input type="number" name="total" value="1" min="1" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
                 <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Shelf Location</label><input type="text" name="shelf" value="Rack-CS-05" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
               </div>
+              <div class="mb-4">
+                <label class="block text-xs font-semibold text-zinc-600 mb-1">Thumbnail Image URL or Upload (Optional)</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input type="text" id="new-book-cover-url" name="coverUrl" placeholder="https://example.com/cover.jpg (leave blank to auto-fetch by ISBN)" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs">
+                  <input type="file" accept="image/*" onchange="handleCoverUpload(this, 'new-book-cover-url')" class="w-full px-3 py-1.5 border border-zinc-200 rounded-xl text-xs bg-zinc-50">
+                </div>
+              </div>
               <div class="flex justify-end"><button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-2xs transition">+ Add Book</button></div>
             </form>
-          </div>` : ''}
+          </div>`) : ''}
 
           <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-2xs overflow-hidden">
             <div class="overflow-x-auto">
@@ -949,6 +1010,8 @@
     }
 
     function renderMembers() {
+      const editingMember = editingMemberId !== null ? state.members.find(m => m.id === editingMemberId) : null;
+
       let rows = state.members.map(m => `
         <tr class="hover:bg-zinc-50/80 border-b border-zinc-100 transition-colors">
           <td class="px-5 py-3.5 font-mono text-xs text-zinc-400">#${m.id}</td>
@@ -956,7 +1019,10 @@
           <td class="px-5 py-3.5 text-xs font-mono text-zinc-500">${m.username}</td>
           <td class="px-5 py-3.5 text-xs text-zinc-600">${m.email}</td>
           <td class="px-5 py-3.5 text-xs text-zinc-600">${m.phone}</td>
-          <td class="px-5 py-3.5"><span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">${m.status}</span></td>
+          <td class="px-5 py-3.5"><span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-zinc-100 text-zinc-600'}">${m.status}</span></td>
+          <td class="px-5 py-3.5 text-right">
+            <button onclick="startEditMember(${m.id})" class="text-xs text-indigo-600 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg font-semibold transition">Edit</button>
+          </td>
         </tr>
       `).join("");
 
@@ -967,6 +1033,26 @@
             <p class="text-zinc-500 text-sm mt-0.5">Registered student directory and patron accounts</p>
           </div>
 
+          ${editingMember ? `
+          <div class="bg-white p-5 rounded-2xl border border-indigo-200 shadow-2xs mb-6">
+            <h2 class="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-4">Edit Member #${editingMember.id}</h2>
+            <form onsubmit="event.preventDefault(); saveMemberEdit(this);">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Full Name</label><input type="text" name="name" value="${editingMember.name}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Username / Roll</label><input type="text" name="username" value="${editingMember.username}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Email</label><input type="email" name="email" value="${editingMember.email}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Phone</label><input type="text" name="phone" value="${editingMember.phone}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Password</label><input type="text" name="password" value="${editingMember.password || 'student123'}" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs" required></div>
+                <div><label class="block text-xs font-semibold text-zinc-600 mb-1">Status</label><select name="status" class="w-full px-3 py-2 border border-zinc-200 rounded-xl text-xs"><option value="ACTIVE" ${editingMember.status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option><option value="INACTIVE" ${editingMember.status === 'INACTIVE' ? 'selected' : ''}>INACTIVE</option></select></div>
+                <div class="flex items-end space-x-2">
+                  <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 rounded-xl text-xs transition">Save</button>
+                  <button type="button" onclick="cancelEditMember()" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-semibold py-2 px-3 rounded-xl text-xs transition">Cancel</button>
+                </div>
+              </div>
+            </form>
+          </div>` : `
           <div class="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-2xs mb-6">
             <h2 class="text-xs font-bold text-zinc-800 uppercase tracking-wider mb-4">Register New Member</h2>
             <form onsubmit="event.preventDefault(); registerMemberFromAdmin(this);">
@@ -981,13 +1067,13 @@
                 <div class="flex items-end"><button type="submit" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold py-2 rounded-xl text-xs transition">+ Add Member</button></div>
               </div>
             </form>
-          </div>
+          </div>`}
 
           <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-2xs overflow-hidden">
             <div class="overflow-x-auto">
               <table class="w-full text-left text-sm">
                 <thead class="bg-zinc-50/70 text-zinc-500 text-[11px] uppercase tracking-wider font-semibold border-b border-zinc-100">
-                  <tr><th class="px-5 py-3">ID</th><th class="px-5 py-3">Name</th><th class="px-5 py-3">Username</th><th class="px-5 py-3">Email</th><th class="px-5 py-3">Phone</th><th class="px-5 py-3">Status</th></tr>
+                  <tr><th class="px-5 py-3">ID</th><th class="px-5 py-3">Name</th><th class="px-5 py-3">Username</th><th class="px-5 py-3">Email</th><th class="px-5 py-3">Phone</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Action</th></tr>
                 </thead>
                 <tbody>${rows}</tbody>
               </table>
@@ -1047,13 +1133,57 @@
       navigate("catalog");
     }
 
+    function handleCoverUpload(input, targetInputId) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (file.size > 400000) {
+        showAlert("Image file is large; use a smaller image or an image URL for faster cloud sync.", false);
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const target = document.getElementById(targetInputId);
+        if (target) target.value = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function startEditBook(bookId) {
+      editingBookId = bookId;
+      navigate("catalog");
+    }
+
+    function cancelEditBook() {
+      editingBookId = null;
+      navigate("catalog");
+    }
+
+    async function saveBookEdit(form) {
+      const book = state.books.find(b => b.id === editingBookId);
+      if (!book) return;
+      const newTotal = Math.max(1, parseInt(form.total.value) || 1);
+      const diff = newTotal - book.total;
+      book.isbn = form.isbn.value.trim();
+      book.title = form.title.value.trim();
+      book.author = form.author.value.trim();
+      book.publisher = form.publisher.value.trim();
+      book.categoryId = parseInt(form.categoryId.value);
+      book.total = newTotal;
+      book.available = Math.max(0, Math.min(newTotal, book.available + diff));
+      book.shelf = form.shelf.value.trim();
+      book.coverUrl = form.coverUrl.value.trim();
+      editingBookId = null;
+      await saveStore(state);
+      showAlert(`Updated "${book.title}".`);
+      navigate("catalog");
+    }
+
     async function addNewBook(form) {
       const newId = Math.max(...state.books.map(b => b.id), 0) + 1;
       const copies = parseInt(form.total.value);
       state.books.push({
         id: newId, isbn: form.isbn.value, title: form.title.value, author: form.author.value,
         publisher: form.publisher.value, edition: "1st Edition", categoryId: parseInt(form.categoryId.value),
-        total: copies, available: copies, shelf: form.shelf.value
+        total: copies, available: copies, shelf: form.shelf.value, coverUrl: (form.coverUrl.value || "").trim()
       });
       await saveStore(state);
       showAlert(`Added "${form.title.value}" to catalog.`);
@@ -1244,6 +1374,39 @@
       await saveStore(state);
       showAlert(`Book returned. Fine settled: ₹${fine}`);
       navigate("dashboard");
+    }
+
+    function startEditMember(memberId) {
+      editingMemberId = memberId;
+      navigate("members");
+    }
+
+    function cancelEditMember() {
+      editingMemberId = null;
+      navigate("members");
+    }
+
+    async function saveMemberEdit(form) {
+      const member = state.members.find(m => m.id === editingMemberId);
+      if (!member) return;
+      const newUsername = form.username.value.trim();
+      if (state.members.some(m => m.id !== member.id && m.username === newUsername)) {
+        showAlert("That username is already used by another member.", false);
+        return;
+      }
+      member.name = form.name.value.trim();
+      member.username = newUsername;
+      member.email = form.email.value.trim();
+      member.phone = form.phone.value.trim();
+      member.password = form.password.value;
+      member.status = form.status.value;
+      if (state.currentUser && state.currentUser.id === member.id) {
+        state.currentUser = { ...member };
+      }
+      editingMemberId = null;
+      await saveStore(state);
+      showAlert(`Updated member "${member.name}".`);
+      navigate("members");
     }
 
     async function registerMemberFromAdmin(form) {
