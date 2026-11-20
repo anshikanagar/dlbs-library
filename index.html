@@ -22,6 +22,12 @@
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
     }
+    .login-bg-wrapper {
+      background-image: linear-gradient(rgba(15, 23, 42, 0.62), rgba(24, 24, 27, 0.72)), url('https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1920&q=80');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
     @media print {
       body { background: white; }
       header, footer, button, .no-print { display: none !important; }
@@ -219,6 +225,7 @@
     let state = readLocalFallback();
     let currentView = "dashboard";
     let loginRoleTab = "ADMIN";
+    let loginErrorMsg = "";
     let catalogKeyword = "";
     let catalogCat = 0;
     let editingMemberId = null;
@@ -237,7 +244,7 @@
     function showAlert(msg, isSuccess = true) {
       const banner = document.getElementById("alert-banner");
       banner.className = `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 block no-print`;
-      banner.innerHTML = `<div class="px-4 py-3 rounded-xl border text-sm font-medium flex justify-between items-center shadow-sm transition-all ${isSuccess ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' : 'bg-rose-50/90 border-rose-200 text-rose-900'}">
+      banner.innerHTML = `<div class="px-4 py-3 rounded-xl border text-sm font-medium flex justify-between items-center shadow-sm transition-all ${isSuccess ? 'bg-emerald-50/95 border-emerald-200 text-emerald-900' : 'bg-rose-50/95 border-rose-200 text-rose-900'}">
         <div class="flex items-center space-x-2">
           <span class="w-2 h-2 rounded-full ${isSuccess ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
           <span>${msg}</span>
@@ -302,6 +309,7 @@
 
     function openLoginWithRole(role) {
       loginRoleTab = role;
+      loginErrorMsg = "";
       navigate('login');
     }
 
@@ -321,6 +329,7 @@
 
     async function logout() {
       state.currentUser = null;
+      loginErrorMsg = "";
       await saveStore(state);
       navigate('login');
       showAlert("Signed out safely.");
@@ -341,24 +350,38 @@
 
     async function login(username, password) {
       const cleanUser = username.trim();
+      loginErrorMsg = "";
       if (loginRoleTab === 'ADMIN') {
-        if (cleanUser === 'admin' && password === (state.adminPassword || 'admin123')) {
+        const expectedPass = state.adminPassword || 'admin123';
+        if (cleanUser !== 'admin') {
+          loginErrorMsg = "Invalid username/email.";
+          showAlert(loginErrorMsg, false);
+          navigate('login');
+        } else if (password !== expectedPass) {
+          loginErrorMsg = "Invalid password.";
+          showAlert(loginErrorMsg, false);
+          navigate('login');
+        } else {
           state.currentUser = { id: 1, name: "Chief Librarian (Mr. Porash)", role: "ADMIN", email: "librarian@ihmmeerut.ac.in", username: "admin" };
           await saveStore(state);
           showAlert("Welcome back, Mr. Porash.");
           navigate('dashboard');
-        } else {
-          showAlert("Invalid administrator credentials.", false);
         }
       } else {
-        const member = state.members.find(m => (m.username === cleanUser || m.email === cleanUser) && m.password === password);
-        if (member) {
-          state.currentUser = { ...member };
-          await saveStore(state);
-          showAlert(`Welcome back, ${member.name}.`);
-          navigate('dashboard');
+        const matchedMember = state.members.find(m => m.username === cleanUser || m.email === cleanUser);
+        if (!matchedMember) {
+          loginErrorMsg = "Invalid username/email.";
+          showAlert(loginErrorMsg, false);
+          navigate('login');
+        } else if (matchedMember.password !== password) {
+          loginErrorMsg = "Invalid password.";
+          showAlert(loginErrorMsg, false);
+          navigate('login');
         } else {
-          showAlert("Invalid student username or password.", false);
+          state.currentUser = { ...matchedMember };
+          await saveStore(state);
+          showAlert(`Welcome back, ${matchedMember.name}.`);
+          navigate('dashboard');
         }
       }
     }
@@ -378,6 +401,7 @@
         state.adminPassword = newPassword;
         await saveStore(state);
         loginRoleTab = 'ADMIN';
+        loginErrorMsg = "";
         showAlert("Administrator password updated.");
         navigate('login');
         return;
@@ -388,6 +412,7 @@
         member.password = newPassword;
         await saveStore(state);
         loginRoleTab = 'STUDENT';
+        loginErrorMsg = "";
         showAlert(`Password updated for ${member.name}.`);
         navigate('login');
       } else {
@@ -411,6 +436,7 @@
       state.members.push({ id: newId, name, username, email, phone, password, role: "MEMBER", status: "ACTIVE" });
       await saveStore(state);
       loginRoleTab = 'STUDENT';
+      loginErrorMsg = "";
       showAlert(`Account created for ${name}. Please sign in.`);
       navigate('login');
     }
@@ -444,7 +470,15 @@
       if (view !== "members") editingMemberId = null;
       if (view !== "catalog") editingBookId = null;
       updateNavbar();
+
       const container = document.getElementById("app-container");
+      const isAuthView = view === "login" || view === "forgotPassword" || view === "selfRegister";
+
+      if (isAuthView) {
+        document.body.classList.add("login-bg-wrapper");
+      } else {
+        document.body.classList.remove("login-bg-wrapper");
+      }
 
       if (view === "login") {
         container.innerHTML = renderLogin();
@@ -480,7 +514,7 @@
       const defaultPass = isStudent ? defaultStudent.password : (state.adminPassword || 'admin123');
 
       return `
-        <div class="max-w-md mx-auto my-8 bg-white rounded-2xl shadow-sm border border-zinc-200/90 overflow-hidden">
+        <div class="max-w-md mx-auto my-8 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-white/40 overflow-hidden">
           <div class="p-8 pb-6 text-center">
             <div class="w-12 h-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center mx-auto mb-4 shadow-sm">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
@@ -490,7 +524,7 @@
           </div>
 
           <div class="px-8">
-            <div class="grid grid-cols-2 p-1 rounded-xl bg-zinc-100 border border-zinc-200/60 text-xs font-semibold mb-6">
+            <div class="grid grid-cols-2 p-1 rounded-xl bg-zinc-100 border border-zinc-200/60 text-xs font-semibold mb-5">
               <button type="button" onclick="openLoginWithRole('STUDENT')" class="py-2 rounded-lg text-center transition ${isStudent ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}">
                 Student
               </button>
@@ -499,18 +533,25 @@
               </button>
             </div>
 
+            ${loginErrorMsg ? `
+              <div class="mb-4 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                <span>${loginErrorMsg}</span>
+              </div>
+            ` : ''}
+
             <form onsubmit="event.preventDefault(); login(this.username.value, this.password.value);">
               <div class="mb-4">
                 <label class="block text-xs font-semibold text-zinc-700 mb-1.5">
                   ${isStudent ? 'Student Username or Email' : 'Admin Username'}
                 </label>
-                <input type="text" name="username" value="${defaultUser}" class="w-full px-3.5 py-2.5 bg-zinc-50/50 border border-zinc-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" required>
+                <input type="text" name="username" value="${defaultUser}" class="w-full px-3.5 py-2.5 bg-zinc-50/70 border border-zinc-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" required>
               </div>
 
               <div class="mb-3">
                 <label class="block text-xs font-semibold text-zinc-700 mb-1.5">Password</label>
                 <div class="relative">
-                  <input type="password" id="login-password" name="password" value="${defaultPass}" class="w-full px-3.5 py-2.5 pr-14 bg-zinc-50/50 border border-zinc-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" required>
+                  <input type="password" id="login-password" name="password" value="${defaultPass}" class="w-full px-3.5 py-2.5 pr-14 bg-zinc-50/70 border border-zinc-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" required>
                   <button type="button" id="toggle-login-pass" onclick="togglePasswordVisibility('login-password', 'toggle-login-pass')" class="absolute inset-y-0 right-0 px-3.5 flex items-center text-zinc-400 hover:text-zinc-700 text-xs font-semibold">
                     Show
                   </button>
@@ -539,7 +580,7 @@
 
     function renderSelfRegister() {
       return `
-        <div class="max-w-md mx-auto my-8 bg-white rounded-2xl shadow-sm border border-zinc-200/90 p-8">
+        <div class="max-w-md mx-auto my-8 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-white/40 p-8">
           <div class="mb-6">
             <h2 class="text-xl font-bold text-zinc-900 tracking-tight">Student Registration</h2>
             <p class="text-xs text-zinc-500 mt-1">Create a library member profile to borrow books</p>
@@ -561,7 +602,7 @@
 
     function renderForgotPassword() {
       return `
-        <div class="max-w-md mx-auto my-8 bg-white rounded-2xl shadow-sm border border-zinc-200/90 p-8">
+        <div class="max-w-md mx-auto my-8 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-white/40 p-8">
           <div class="mb-6">
             <h2 class="text-xl font-bold text-zinc-900 tracking-tight">Reset Password</h2>
             <p class="text-xs text-zinc-500 mt-1">Enter your registered username or email address</p>
@@ -1020,8 +1061,9 @@
           <td class="px-5 py-3.5 text-xs text-zinc-600">${m.email}</td>
           <td class="px-5 py-3.5 text-xs text-zinc-600">${m.phone}</td>
           <td class="px-5 py-3.5"><span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-zinc-100 text-zinc-600'}">${m.status}</span></td>
-          <td class="px-5 py-3.5 text-right">
+          <td class="px-5 py-3.5 text-right space-x-2">
             <button onclick="startEditMember(${m.id})" class="text-xs text-indigo-600 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg font-semibold transition">Edit</button>
+            <button onclick="deleteMember(${m.id})" class="text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg font-semibold transition">Delete</button>
           </td>
         </tr>
       `).join("");
@@ -1075,7 +1117,7 @@
                 <thead class="bg-zinc-50/70 text-zinc-500 text-[11px] uppercase tracking-wider font-semibold border-b border-zinc-100">
                   <tr><th class="px-5 py-3">ID</th><th class="px-5 py-3">Name</th><th class="px-5 py-3">Username</th><th class="px-5 py-3">Email</th><th class="px-5 py-3">Phone</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Action</th></tr>
                 </thead>
-                <tbody>${rows}</tbody>
+                <tbody>${rows.length > 0 ? rows : '<tr><td colspan="7" class="text-center py-10 text-zinc-400">No registered members yet.</td></tr>'}</tbody>
               </table>
             </div>
           </div>
@@ -1407,6 +1449,24 @@
       await saveStore(state);
       showAlert(`Updated member "${member.name}".`);
       navigate("members");
+    }
+
+    async function deleteMember(memberId) {
+      const member = state.members.find(m => m.id === memberId);
+      if (!member) return;
+      const hasActiveLoans = state.issues.some(i => i.userId === memberId && i.status !== "RETURNED");
+      if (hasActiveLoans) {
+        showAlert(`Cannot delete "${member.name}" while they still have active borrowed books.`, false);
+        return;
+      }
+      if (confirm(`Are you sure you want to delete member "${member.name}" (#${member.id})?`)) {
+        state.members = state.members.filter(m => m.id !== memberId);
+        state.requests = state.requests.filter(r => r.userId !== memberId);
+        if (editingMemberId === memberId) editingMemberId = null;
+        await saveStore(state);
+        showAlert(`Deleted member "${member.name}".`);
+        navigate("members");
+      }
     }
 
     async function registerMemberFromAdmin(form) {
